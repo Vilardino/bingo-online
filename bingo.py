@@ -2,12 +2,14 @@ import streamlit as st
 import random
 import json
 import os
+import pyttsx3
 
 # Função para salvar estado
 def save_state(state, filename='state.json'):
     data = {
         'drawn_numbers': state.get('drawn_numbers', []),
-        'remaining_numbers': state.get('remaining_numbers', [])
+        'remaining_numbers': state.get('remaining_numbers', []),
+        'sound_enabled': state.get('sound_enabled', True)
     }
     with open(filename, 'w') as f:
         json.dump(data, f)
@@ -17,7 +19,7 @@ def load_state(filename='state.json'):
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             return json.load(f)
-    return {'drawn_numbers': [], 'remaining_numbers': list(range(1, 76))}
+    return {'drawn_numbers': [], 'remaining_numbers': list(range(1, 76)), 'sound_enabled': True}
 
 # Função para carregar estado anterior
 def load_previous_state(filename='previous_state.json'):
@@ -26,16 +28,27 @@ def load_previous_state(filename='previous_state.json'):
             return json.load(f)
     else:
         st.warning("Nenhum estado anterior encontrado.")
-        return {'drawn_numbers': [], 'remaining_numbers': list(range(1, 76))}
+        return {'drawn_numbers': [], 'remaining_numbers': list(range(1, 76)), 'sound_enabled': True}
 
 # Função para salvar estado atual como estado anterior
 def save_current_as_previous(current_state):
     save_state(current_state, 'previous_state.json')
 
+# Função para falar o número sorteado
+def speak_number(number):
+    if st.session_state.sound_enabled:
+        engine = pyttsx3.init()
+        engine.say(f"Número sorteado: {number}")
+        engine.runAndWait()
+
 # Carregar estado atual
 state = load_state()
-st.session_state.drawn_numbers = state['drawn_numbers']
-st.session_state.remaining_numbers = state['remaining_numbers']
+if 'drawn_numbers' not in st.session_state:
+    st.session_state.drawn_numbers = state['drawn_numbers']
+if 'remaining_numbers' not in st.session_state:
+    st.session_state.remaining_numbers = state['remaining_numbers']
+if 'sound_enabled' not in st.session_state:
+    st.session_state.sound_enabled = state['sound_enabled']
 
 st.set_page_config(layout="wide")  # Define o modo wide
 
@@ -46,8 +59,12 @@ with st.sidebar:
     st.header("Controles")
 
     # Mostrar quantos números ainda faltam ser sorteados
-    st.subheader(f"Números restantes: {len(st.session_state.remaining_numbers)-1}")
+    st.subheader(f"Números restantes: {len(st.session_state.remaining_numbers)}")
     
+    # Habilitar/Desabilitar som
+    st.session_state.sound_enabled = st.checkbox('Habilitar som', st.session_state.sound_enabled)
+    save_state(st.session_state)
+
     # Botão para sortear número
     if st.button('Sortear Número'):
         if 'remaining_numbers' not in st.session_state:
@@ -57,6 +74,12 @@ with st.sidebar:
             st.session_state.drawn_numbers.append(drawn_number)
             st.session_state.remaining_numbers.remove(drawn_number)
             save_state(st.session_state)
+            speak_number(drawn_number)  # Falar o número sorteado
+    
+    # Botão para repetir o som do último número sorteado
+    if st.button('Repetir Som do Último Número'):
+        if st.session_state.drawn_numbers:
+            speak_number(st.session_state.drawn_numbers[-1])
     
     # Botão para resetar o jogo com confirmação
     if st.button('Resetar Jogo'):
@@ -76,6 +99,7 @@ with st.sidebar:
             previous_state = load_previous_state()
             st.session_state.drawn_numbers = previous_state['drawn_numbers']
             st.session_state.remaining_numbers = previous_state['remaining_numbers']
+            st.session_state.sound_enabled = previous_state['sound_enabled']
             save_state(st.session_state)
             st.session_state.confirm_previous_1 = False
             st.session_state.confirm_previous_2 = False
